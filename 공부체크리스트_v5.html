@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>공부 체크리스트</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 40px 16px;
+      background: #f4f6fa;
+      color: #202838;
+      font-family: system-ui, -apple-system, "Malgun Gothic", sans-serif;
+    }
+    main {
+      width: 100%;
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 30px;
+      background: #fff;
+      border: 1px solid #e5e9f0;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(25, 44, 80, 0.06);
+    }
+    h1 { font-size: 26px; margin: 0 0 12px; }
+    #progress { margin: 0 0 28px; font-weight: 700; color: #3059a5; }
+    form { display: flex; gap: 8px; }
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #bfc8d7;
+      border-radius: 8px;
+      font: inherit;
+    }
+    button {
+      padding: 12px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: #3059a5;
+      color: white;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { background: #244783; }
+    #message { min-height: 1.5em; margin: 8px 0 10px; color: #b42318; font-size: 14px; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { border-top: 1px solid #e9edf3; }
+    li label {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 15px 2px;
+      cursor: pointer;
+      overflow-wrap: anywhere;
+    }
+    li input[type="checkbox"] { width: 19px; height: 19px; margin: 1px 0 0; flex: none; accent-color: #3059a5; }
+    li span { flex: 1; }
+    li input:checked + span { color: #7d8797; text-decoration: line-through; }
+    .clear-done { display: block; margin: 18px 0 0 auto; background: #fff; color: #3059a5; border: 1px solid #3059a5; }
+    .clear-done:hover { background: #eef2fa; }
+    .clear-done[hidden] { display: none; }
+    @media print {
+      body { background: #fff; padding: 0; }
+      main { box-shadow: none; border: 0; }
+      form, #message, .clear-done { display: none !important; }
+    }
+    @media (max-width: 420px) {
+      main { padding: 22px 18px; }
+      h1 { font-size: 23px; }
+      button { padding: 12px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>공부 체크리스트</h1>
+    <p id="progress" aria-live="polite">0개 중 0개 완료</p>
+
+    <form id="task-form" novalidate>
+      <input id="task-input" type="text" placeholder="오늘 할 공부를 입력하세요" aria-label="할 공부" autocomplete="off" autofocus>
+      <button type="submit">추가</button>
+    </form>
+    <p id="message" role="status" aria-live="polite"></p>
+
+    <ul id="task-list" aria-label="공부 할 일 목록"></ul>
+    <button type="button" id="clear-done" class="clear-done">끝낸 일 지우기</button>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const STORAGE_KEY = 'study-checklist-tasks';
+      const form = document.getElementById('task-form');
+      const input = document.getElementById('task-input');
+      const message = document.getElementById('message');
+      const list = document.getElementById('task-list');
+      const progress = document.getElementById('progress');
+
+      let tasks = [];
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (Array.isArray(saved)) {
+          tasks = saved.filter(task =>
+            task && typeof task.text === 'string' && typeof task.done === 'boolean'
+          );
+        }
+      } catch (error) {
+        tasks = [];
+      }
+
+      function save() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+        } catch (error) {
+          message.textContent = '이 브라우저에서는 자동 저장을 사용할 수 없습니다.';
+        }
+      }
+
+      function render() {
+        list.replaceChildren();
+        tasks.forEach((task, index) => {
+          const li = document.createElement('li');
+          const label = document.createElement('label');
+          const checkbox = document.createElement('input');
+          const text = document.createElement('span');
+
+          checkbox.type = 'checkbox';
+          checkbox.checked = task.done;
+          checkbox.addEventListener('change', () => {
+            tasks[index].done = checkbox.checked;
+            message.textContent = '';
+            save();
+            render();
+            const boxes = list.querySelectorAll('input[type="checkbox"]');
+            if (boxes[index]) boxes[index].focus();
+          });
+
+          text.textContent = task.text;
+          label.append(checkbox, text);
+          li.appendChild(label);
+          list.appendChild(li);
+        });
+        const completed = tasks.filter(task => task.done).length;
+        progress.textContent = `${tasks.length}개 중 ${completed}개 완료`;
+        document.getElementById('clear-done').hidden = completed === 0;
+      }
+
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        const text = input.value.trim();
+        if (!text) {
+          message.textContent = '할 일을 입력해 주세요.';
+          input.focus();
+          return;
+        }
+        tasks.push({ text, done: false });
+        input.value = '';
+        message.textContent = '';
+        save();
+        render();
+        input.focus();
+      });
+
+      document.getElementById('clear-done').addEventListener('click', () => {
+        const removed = tasks.filter(task => task.done).length;
+        tasks = tasks.filter(task => !task.done);
+        save();
+        render();
+        message.textContent = `끝낸 일 ${removed}개를 지웠어요.`;
+        input.focus();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
